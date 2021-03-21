@@ -1,0 +1,30 @@
+{
+	"name": "games.mitchcroft.mcuregistry",
+	"displayName": "MCU Registry",
+	"version": "1.0.0",
+	"unity": "2018.3",
+	"engines": {
+		"unity": ">=2018.3"
+	},
+
+	"description": "Handle the identification of MCU Adapters to allow for dynamic setup of packages based on the existence of those that are included",
+	"keywords": [ "registry", "register", "adapter", "adaptor" ],
+
+	"dependencies": {},
+
+	"author": {
+		"name": "Mitchell Croft",
+		"email": "me@mitchcroft.games",
+		"url": "https://github.com/MitchCroft/MCU_Registry"
+	},
+	"license": "MIT",
+	"repository": "https://github.com/MitchCroft/MCU_Registry.git",
+	"bugs": {
+		"url": "https://github.com/MitchCroft/MCU_Registry/issues",
+		"email": "me@mitchcroft.games"
+	},
+
+	"publishConfig": {
+		"registry": "http://34.82.65.253:4874/"
+	}
+}
