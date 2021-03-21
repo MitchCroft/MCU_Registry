@@ -1,0 +1,26 @@
+on:
+  push:
+    branches: [ Releases ]
+    
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v1
+      - uses: actions/setup-node@v1
+        with:
+          node-version: 10
+      - run: npm install
+      - id: publish
+        name: NPM Publish
+        uses: JS-DevTools/npm-publish@v1
+        with: 
+          token: ${{ secrets.NPM_TOKEN }}
+          registry: http://184.168.126.153:4873/
+          package: ${{ github.workspace }}/Assets/MCU_Registry/package.json
+      - if: steps.publish.outputs.type != 'none'
+        name: Github Tag
+        uses: mathieudutour/github-tag-action@v5.3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          custom_tag: ${{ steps.publish.outputs.version }}
