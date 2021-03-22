@@ -37,8 +37,10 @@ jobs:
       - name: Identify Meta for Package
         if: steps.publish.outputs.type != 'none'
         run: |
-          echo "${DIRECTORY_PATH}.meta" > metaList
-          find ${DIRECTORY_PATH}/ -name \*.meta >> metaList
+          cd ${{ github.workspace }}
+          echo "Assets/${PACKAGE_NAME}.meta" > metaList
+          find "Assets/${PACKAGE_NAME}/" -name \*.meta >> metaList
+          cd $HOME
           mkdir output
       - id: package
         name: Create Unity Package
@@ -46,7 +48,8 @@ jobs:
         uses: pCYSl5EDgo/create-unitypackage@v1
         with:
           package-path: './output/${{ env.PACKAGE_NAME }}${{ steps.publish.outputs.version }}.unitypackage'
-          include-files: metaList
+          include-files: "${{ github.workspace }}/metaList"
+          project-folder: ${{ github.workspace }}
       - name: Upload Package Data
         if: steps.publish.outputs.type != 'none'
         uses: actions/upload-release-asset@v1
