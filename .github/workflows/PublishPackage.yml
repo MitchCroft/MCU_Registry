@@ -9,7 +9,7 @@ jobs:
       PACKAGE_NAME: MCU_Registry
       DIRECTORY_PATH: ${{ github.workspace }}/Assets/MCU_Registry
       PACKAGE_FILE: package.json
-      DRY_RUN: true
+      DRY_RUN: false
     steps:
       - uses: actions/checkout@v1
       - uses: actions/setup-node@v1
