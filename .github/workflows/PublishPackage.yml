@@ -21,7 +21,7 @@ jobs:
         uses: JS-DevTools/npm-publish@v1
         with: 
           token: ${{ secrets.NPM_TOKEN }}
-          registry: http://184.168.126.153:4873/
+          registry: http://www.mitchcroft.games:4873/
           package: '${{ env.DIRECTORY_PATH }}/${{ env.PACKAGE_FILE }}'
           dry-run: ${{ env.DRY_RUN }}
       - id: tag
