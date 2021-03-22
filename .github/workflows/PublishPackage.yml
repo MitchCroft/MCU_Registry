@@ -3,12 +3,12 @@ on:
     branches: [ Releases ]
 
 jobs:
-  env:
-    PACKAGE_NAME: MCU_Registry
-    DIRECTORY_PATH: ${{ github.workspace }}/Assets/$PACKAGE_NAME/
-    PACKAGE_FILE: package.json
   publish:
     runs-on: ubuntu-latest
+    env:
+      PACKAGE_NAME: MCU_Registry
+      DIRECTORY_PATH: ${{ github.workspace }}/Assets/$PACKAGE_NAME/
+      PACKAGE_FILE: package.json
     steps:
       - uses: actions/checkout@v1
       - uses: actions/setup-node@v1
