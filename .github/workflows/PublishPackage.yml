@@ -7,7 +7,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       PACKAGE_NAME: MCU_Registry
-      DIRECTORY_PATH: ${{ github.workspace }}/Assets/${PACKAGE_NAME}/
+      DIRECTORY_PATH: ${{ github.workspace }}/Assets/MCU_Registry/
       PACKAGE_FILE: package.json
       DRY_RUN: true
     steps:
