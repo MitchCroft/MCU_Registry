@@ -1,8 +1,12 @@
 on:
   push:
     branches: [ Releases ]
-    
+
 jobs:
+  env:
+    PACKAGE_NAME: MCU_Registry
+    DIRECTORY_PATH: ${{ github.workspace }}/Assets/$PACKAGE_NAME/
+    PACKAGE_FILE: package.json
   publish:
     runs-on: ubuntu-latest
     steps:
@@ -17,10 +21,37 @@ jobs:
         with: 
           token: ${{ secrets.NPM_TOKEN }}
           registry: http://184.168.126.153:4873/
-          package: ${{ github.workspace }}/Assets/MCU_Registry/package.json
-      - if: steps.publish.outputs.type != 'none'
-        name: Github Tag
-        uses: mathieudutour/github-tag-action@v5.3
+          package: ${DIRECTORY_PATH}${PACKAGE_FILE}
+      - id: tag
+        name: Create a Release of Unity Package
+        if: steps.publish.outputs.type != 'none'
+        uses: quabug/create-upm-release@v1.0.1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          custom_tag: ${{ steps.publish.outputs.version }}
+          upm_package_path: ${DIRECTORY_PATH}
+          upm_tag_prefix: v
+          draft: ${{ steps.publish.outputs.dryRun }}
+      - name: Identify Meta for Package
+        if: steps.publish.outputs.type != 'none'
+        run: |
+          echo "${DIRECTORY_PATH}.meta" > metaList
+          find ${DIRECTORY_PATH}/ -name \*.meta >> metaList
+          mkdir output
+      - id: package
+        name: Create Unity Package
+        if: steps.publish.outputs.type != 'none'
+        uses: pCYSl5EDgo/create-unitypackage@v1
+        with:
+          package-path: ./output/${PACKAGE_NAME}${{ steps.publish.outputs.version }}.unitypackage
+          include-files: metaList
+      - name: Upload Package Data
+        if: steps.publish.outputs.type != 'none' && steps.publish.outputs.dryRun == false
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.tag.outputs.upload_url }}
+          asset_path: ./output/${PACKAGE_NAME}${{ steps.publish.outputs.version }}.unitypackage
+          asset_name: ${PACKAGE_NAME}${{ steps.publish.outputs.version }}.unitypackage
+          asset_content_type: application/gzip
