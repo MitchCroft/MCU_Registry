@@ -6,8 +6,9 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     env:
+      REGISTRY: http://vps.mitchcroft.games:4873/
       PACKAGE_NAME: MCU_Registry
-      DIRECTORY_PATH: ${{ github.workspace }}/Assets/MCU_Registry
+      DIRECTORY_PATH: ${{ github.workspace }}/Assets/MCU/MCU_Registry
       PACKAGE_FILE: package.json
       DRY_RUN: false
     steps:
@@ -21,7 +22,7 @@ jobs:
         uses: JS-DevTools/npm-publish@v1
         with: 
           token: ${{ secrets.NPM_TOKEN }}
-          registry: http://www.mitchcroft.games:4873/
+          registry: ${{ env.REGISTRY }}
           package: '${{ env.DIRECTORY_PATH }}/${{ env.PACKAGE_FILE }}'
           dry-run: ${{ env.DRY_RUN }}
       - id: tag
@@ -38,8 +39,8 @@ jobs:
         if: steps.publish.outputs.type != 'none'
         run: |
           cd ${{ github.workspace }}
-          echo "Assets/${PACKAGE_NAME}.meta" > metaList
-          find "Assets/${PACKAGE_NAME}/" -name \*.meta >> metaList
+          echo "Assets/MCU.meta" > metaList
+          find "Assets/MCU/" -name \*.meta >> metaList
           cd $HOME
           mkdir output
       - id: package
