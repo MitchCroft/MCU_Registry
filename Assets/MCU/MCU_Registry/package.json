@@ -25,6 +25,6 @@
 	},
 
 	"publishConfig": {
-		"registry": "http://www.mitchcroft.games:4873/"
+		"registry": "http://vps.mitchcroft.games:4873/"
 	}
 }
