@@ -2,11 +2,17 @@ using System;
 using System.Reflection;
 using System.Collections.Generic;
 
+#if UNITY_EDITOR
+using System.IO;
+
+using UnityEditor;
+#endif
+
 namespace MCU.Registry {
     /// <summary>
     /// Manage the registration of different MCU adapters that can be used dynamically
     /// </summary>
-    [MCUAdapter("registry", "1.0.0", "REG")]
+    [MCUAdapter("registry", "1.1.0", "REG")]
     public static class MCURegistry {
         /*----------Types----------*/
         //PRIVATE
@@ -134,76 +140,6 @@ namespace MCU.Registry {
         }
 
         /// <summary>
-        /// Force an exception to be raised if the registry hasn't been initialised properly
-        /// </summary>
-        private static void ThrowIfNotInitialized() {
-            if (!Initialized)
-                throw new Exception("MCURegistry has not been initialised successfully");
-        }
-
-#if UNITY_EDITOR
-        /// <summary>
-        /// Identify the scripting define symbols that need to be included within the project settings
-        /// </summary>
-        [UnityEditor.InitializeOnLoadMethod]
-        private static void AssignScriptingDefines() {
-            // If the registry couldn't be initialised properly, can't assign symbols
-            if (!Initialized)
-                return;
-
-            // Get the scripting symbols defined for the current platform
-            string symbols = UnityEditor.PlayerSettings.GetScriptingDefineSymbolsForGroup(
-                UnityEditor.EditorUserBuildSettings.selectedBuildTargetGroup
-            );
-
-            // Find all of the symbols that need to be included in the project settings
-            HashSet<string> scriptingDefines = new HashSet<string>();
-            foreach (AdapterInformation adapterInfo in adapters.Values) {
-                // If no scripting define set for the adapter, no point
-                if (string.IsNullOrWhiteSpace(adapterInfo.scriptingDefineIdentifier))
-                    continue;
-
-                // If the symbol is already included in the list, don't bother
-                if (scriptingDefines.Contains(adapterInfo.scriptingDefineIdentifier))
-                    continue;
-
-                // Otherwise, missing symbol needs including
-                scriptingDefines.Add(REGISTERY_SCRIPT_DEFINE_PREFIX + adapterInfo.scriptingDefineIdentifier);
-            }
-
-            // Get the current collection of scripting defined symbols
-            int previousCount = 0;
-            bool wasModified = false;
-            HashSet<string> previousDefines = new HashSet<string>();
-            string[] individuals = symbols.Split(new char[] { ';' }, StringSplitOptions.RemoveEmptyEntries);
-            for (int i = 0; i < individuals.Length; ++i) {
-                // If this isn't one from MCU, add it to the list
-                if (!individuals[i].StartsWith(REGISTERY_SCRIPT_DEFINE_PREFIX))
-                    previousDefines.Add(individuals[i]);
-
-                // Otherwise, check if something is being added or removed
-                else {
-                    ++previousCount;
-                    if (!scriptingDefines.Contains(individuals[i]))
-                        wasModified = true;
-                }
-            }
-
-            // Assign the new symbols to the project settings
-            wasModified |= (previousCount != scriptingDefines.Count);
-            if (wasModified) {
-                // Copy the non-registry symbols into the main list so that they appear after
-                scriptingDefines.UnionWith(previousDefines);
-
-                // Set the scripting define symbols as needed
-                UnityEditor.PlayerSettings.SetScriptingDefineSymbolsForGroup(
-                    UnityEditor.EditorUserBuildSettings.selectedBuildTargetGroup,
-                    string.Join(";", scriptingDefines)
-                );
-            }
-        }
-
-        /// <summary>
         /// Populate a method signature for logging
         /// </summary>
         /// <param name="method">The MethodInfo object that will have the signature generated</param>
@@ -234,7 +170,14 @@ namespace MCU.Registry {
 
             return sb.ToString();
         }
-#endif
+
+        /// <summary>
+        /// Force an exception to be raised if the registry hasn't been initialised properly
+        /// </summary>
+        private static void ThrowIfNotInitialized() {
+            if (!Initialized)
+                throw new Exception("MCURegistry has not been initialised successfully");
+        }
 
         //PUBLIC
 
@@ -395,5 +338,135 @@ namespace MCU.Registry {
                 defaultReturn
             );
         }
+
+#if UNITY_EDITOR
+        /// <summary>
+        /// Additional functionality that is available within the Unity Editor
+        /// </summary>
+        public static class Editor {
+            /*----------Variables----------*/
+            //CONST
+
+            /// <summary>
+            /// Store the current working directory for processing relative elements
+            /// </summary>
+            public static readonly string WORKING_DIRECTORY = Directory.GetCurrentDirectory().Replace('\\', '/') + "/";
+
+            /*----------Functions----------*/
+            //PRIVATE
+
+            /// <summary>
+            /// Identify the scripting define symbols that need to be included within the project settings
+            /// </summary>
+            [InitializeOnLoadMethod]
+            private static void AssignScriptingDefines() {
+                // If the registry couldn't be initialised properly, can't assign symbols
+                if (!Initialized)
+                    return;
+
+                // Get the scripting symbols defined for the current platform
+                string symbols = PlayerSettings.GetScriptingDefineSymbolsForGroup(
+                    EditorUserBuildSettings.selectedBuildTargetGroup
+                );
+
+                // Find all of the symbols that need to be included in the project settings
+                HashSet<string> scriptingDefines = new HashSet<string>();
+                foreach (AdapterInformation adapterInfo in adapters.Values) {
+                    // If no scripting define set for the adapter, no point
+                    if (string.IsNullOrWhiteSpace(adapterInfo.scriptingDefineIdentifier))
+                        continue;
+
+                    // If the symbol is already included in the list, don't bother
+                    if (scriptingDefines.Contains(adapterInfo.scriptingDefineIdentifier))
+                        continue;
+
+                    // Otherwise, missing symbol needs including
+                    scriptingDefines.Add(REGISTERY_SCRIPT_DEFINE_PREFIX + adapterInfo.scriptingDefineIdentifier);
+                }
+
+                // Get the current collection of scripting defined symbols
+                int previousCount = 0;
+                bool wasModified = false;
+                HashSet<string> previousDefines = new HashSet<string>();
+                string[] individuals = symbols.Split(new char[] { ';' }, StringSplitOptions.RemoveEmptyEntries);
+                for (int i = 0; i < individuals.Length; ++i) {
+                    // If this isn't one from MCU, add it to the list
+                    if (!individuals[i].StartsWith(REGISTERY_SCRIPT_DEFINE_PREFIX))
+                        previousDefines.Add(individuals[i]);
+
+                    // Otherwise, check if something is being added or removed
+                    else {
+                        ++previousCount;
+                        if (!scriptingDefines.Contains(individuals[i]))
+                            wasModified = true;
+                    }
+                }
+
+                // Assign the new symbols to the project settings
+                wasModified |= (previousCount != scriptingDefines.Count);
+                if (wasModified) {
+                    // Copy the non-registry symbols into the main list so that they appear after
+                    scriptingDefines.UnionWith(previousDefines);
+
+                    // Set the scripting define symbols as needed
+                    PlayerSettings.SetScriptingDefineSymbolsForGroup(
+                        EditorUserBuildSettings.selectedBuildTargetGroup,
+                        string.Join(";", scriptingDefines)
+                    );
+                }
+            }
+
+            //PUBLIC
+
+            /// <summary>
+            /// Remove the MCU registry scripting defines from the project and let them be reproccessed
+            /// </summary>
+            [MenuItem("MCU/Registry/Regenerate Scripting Defines")]
+            public static void RegenerateScriptingDefines() {
+                // Get the scripting symbols defined for the current platform
+                string symbols = PlayerSettings.GetScriptingDefineSymbolsForGroup(
+                    EditorUserBuildSettings.selectedBuildTargetGroup
+                );
+
+                // Find all entries that need to persist
+                bool modified = false;
+                HashSet<string> persistingDefines = new HashSet<string>();
+                string[] individuals = symbols.Split(new char[] { ';' }, StringSplitOptions.RemoveEmptyEntries);
+                for (int i = 0; i < individuals.Length; ++i) {
+                    // If the symbol doesn't start with the registry stamp it can stay
+                    if (!individuals[i].StartsWith(REGISTERY_SCRIPT_DEFINE_PREFIX))
+                        persistingDefines.Add(individuals[i]);
+
+                    // Otherwise, there will be changes
+                    else if (!modified)
+                        modified = true;
+                }
+
+                // If the entries will be changed, set the remainging
+                if (modified) {
+                    PlayerSettings.SetScriptingDefineSymbolsForGroup(
+                        EditorUserBuildSettings.selectedBuildTargetGroup,
+                        string.Join(";", persistingDefines)
+                    );
+                }
+            }
+
+            /// <summary>
+            /// Find the specified search directory within the current project assets
+            /// </summary>
+            /// <param name="searchDirectory">The directory that is being looked for</param>
+            /// <returns>Returns the first matching directory path found or null if not found</returns>
+            /// <remarks>
+            /// A valid path that is returned by this search will start with "Assets/..."
+            /// </remarks>
+            public static string FindAssetDirectory(string searchDirectory) {
+                string[] found = Directory.GetDirectories("Assets/", searchDirectory, SearchOption.AllDirectories);
+                return (found.Length == 0 ?
+                    null :
+                    found[0].Replace('\\', '/')
+                );
+            }
+        }
+#endif
     }
 }
