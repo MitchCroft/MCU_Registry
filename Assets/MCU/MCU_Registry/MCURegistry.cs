@@ -348,6 +348,11 @@ namespace MCU.Registry {
             //CONST
 
             /// <summary>
+            /// The different characters that can be used to split out directories that will be processed
+            /// </summary>
+            private static readonly char[] DIRECTORY_SEPARATORS = new char[] { '/', '\\' };
+
+            /// <summary>
             /// Store the current working directory for processing relative elements
             /// </summary>
             public static readonly string WORKING_DIRECTORY = Directory.GetCurrentDirectory().Replace('\\', '/') + "/";
@@ -460,10 +465,76 @@ namespace MCU.Registry {
             /// A valid path that is returned by this search will start with "Assets/..."
             /// </remarks>
             public static string FindAssetDirectory(string searchDirectory) {
-                string[] found = Directory.GetDirectories("Assets/", searchDirectory, SearchOption.AllDirectories);
-                return (found.Length == 0 ?
-                    null :
-                    found[0].Replace('\\', '/')
+                // Divide the specified search string into the different segments
+                string[] searchStages = searchDirectory.Split(DIRECTORY_SEPARATORS, StringSplitOptions.RemoveEmptyEntries);
+
+                // If there are no stages then don't bother
+                if (searchStages.Length == 0) return null;
+
+                // Look for the chain of directories that are needed to identify the correct location
+                Queue<DirectoryInfo> unsearched = new Queue<DirectoryInfo>();
+                unsearched.Enqueue(new DirectoryInfo(WORKING_DIRECTORY + "Assets/"));
+
+                // Process the contained directories until a match is found
+                DirectoryInfo foundDirectory = null;
+                while (unsearched.Count > 0) {
+                    // Get the next directory to be processed
+                    DirectoryInfo current = unsearched.Dequeue();
+
+                    // If this directory is the start of the process, look for the sub sections
+                    if (current.Name == searchStages[0]) {
+                        // If this is the only level of the search then we're good
+                        if (searchStages.Length == 1)
+                            foundDirectory = current;
+
+                        // Otherwise, look for the child directories that are needed
+                        else {
+                            // Store the parent directory that is currently being searched
+                            DirectoryInfo parent = current;
+
+                            // Look for each of the child stages that are needed
+                            for (int i = 1; i < searchStages.Length; ++i) {
+                                // Try to find the directory at this stage
+                                DirectoryInfo[] stages = parent.GetDirectories(searchStages[i], SearchOption.TopDirectoryOnly);
+                                if (stages.Length == 0) break;
+
+                                // Try to find the sub-directory to look in
+                                DirectoryInfo newParent = null;
+                                for (int ii = 0; ii < stages.Length; ++ii) {
+                                    // If this directory is a match then we're good
+                                    if (stages[ii].Name == searchStages[i]) {
+                                        newParent = stages[ii];
+                                        break;
+                                    }
+                                }
+
+                                // If no directory was found then search ends here
+                                if (newParent == null) break;
+
+                                // If this is the last directory needed, then search is over
+                                else if (i == searchStages.Length - 1) {
+                                    foundDirectory = newParent;
+                                    break;
+                                }
+
+                                // Otherwise, we need to go down to the next layer
+                                else parent = newParent;
+                            }
+                        }
+                    }
+
+                    // If the directory was found then don't need to search anymore
+                    if (foundDirectory != null) break;
+
+                    // Add the sub-directories to the processing list
+                    foreach (DirectoryInfo subDirectory in current.GetDirectories())
+                        unsearched.Enqueue(subDirectory);
+                }
+
+                // Return the final directory path
+                return (foundDirectory != null ?
+                    foundDirectory.FullName.Substring(WORKING_DIRECTORY.Length).Replace('\\', '/') :
+                    null
                 );
             }
         }
