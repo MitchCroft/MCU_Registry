@@ -344,6 +344,49 @@ namespace MCU.Registry {
         /// Additional functionality that is available within the Unity Editor
         /// </summary>
         public static class Editor {
+            /*----------Types----------*/
+            //PRIVATE
+
+
+            private struct LabelSearchContainer {
+                /// <summary>
+                /// The directory that this search container is currently related to
+                /// </summary>
+                public DirectoryInfo directory;
+
+                /// <summary>
+                /// The depth level that this search container is at while searching
+                /// </summary>
+                public int depth;
+
+                /// <summary>
+                /// The collection of labels that are to be applied to found assets
+                /// </summary>
+                public HashSet<string> labels;
+
+                /// <summary>
+                /// Create the search container object with the running values that are needed
+                /// </summary>
+                /// <param name="directory">The directory that this container is focusing on</param>
+                public LabelSearchContainer(DirectoryInfo directory) {
+                    this.directory = directory;
+                    this.depth = 0;
+                    this.labels = new HashSet<string>();
+                }
+
+                /// <summary>
+                /// Create the search container at a lower level then a preceding level
+                /// </summary>
+                /// <param name="directory">The directory that this container is focusing on</param>
+                /// <param name="depth">The depth level that this container is at in the search</param>
+                /// <param name="inheritedLabels">The collection of labels that are to be inherited by this container</param>
+                public LabelSearchContainer(DirectoryInfo directory, int depth, HashSet<string> inheritedLabels) {
+                    this.directory = directory;
+                    this.depth = depth;
+                    this.labels = new HashSet<string>(inheritedLabels);
+                }
+            }
+
             /*----------Variables----------*/
             //CONST
 
@@ -356,6 +399,11 @@ namespace MCU.Registry {
             /// Store the current working directory for processing relative elements
             /// </summary>
             public static readonly string WORKING_DIRECTORY = Directory.GetCurrentDirectory().Replace('\\', '/') + "/";
+
+            /// <summary>
+            /// Defines the depth down the identified directories the search will go when applying labels
+            /// </summary>
+            public const int LABEL_DEPTH = 1;
 
             /*----------Functions----------*/
             //PRIVATE
@@ -418,6 +466,73 @@ namespace MCU.Registry {
                         EditorUserBuildSettings.selectedBuildTargetGroup,
                         string.Join(";", scriptingDefines)
                     );
+                }
+            }
+
+            /// <summary>
+            /// Identify the labels that need to be assigned to the MCU assets
+            /// </summary>
+            [InitializeOnLoadMethod]
+            private static void LabelAssets() {
+                // Look for any and all MCU directories in the assets folder to apply labels to
+                List<string> directories = FindAssetDirectories("MCU");
+                if (directories.Count == 0)
+                    return;
+
+                // Find the assets in the directories that need to be processed
+                Queue<LabelSearchContainer> unsearched = new Queue<LabelSearchContainer>(directories.Count);
+                for (int i = 0; i < directories.Count; ++i) 
+                    unsearched.Enqueue(new LabelSearchContainer(new DirectoryInfo(directories[i])));
+
+                // Label all of the identified assets in the project
+                List<FileSystemInfo> buffer = new List<FileSystemInfo>();
+                while (unsearched.Count > 0) {
+                    // Get this level to be processed
+                    LabelSearchContainer current = unsearched.Dequeue();
+                    current.labels.Add(current.directory.Name);
+
+                    // Get a flag if this is as detailed as the search goes
+                    bool atSearchDepth = current.depth >= LABEL_DEPTH;
+
+                    // Clear the buffer to add up for this level
+                    buffer.Clear();
+
+                    // If we are not at the depth limit, need to add these directories to the search list
+                    if (!atSearchDepth) {
+                        // Add each sub-directory directory to the search list
+                        DirectoryInfo[] subDirectories = current.directory.GetDirectories("*", SearchOption.TopDirectoryOnly);
+                        foreach (DirectoryInfo dir in subDirectories) {
+                            unsearched.Enqueue(new LabelSearchContainer(
+                                dir,
+                                current.depth + 1,
+                                current.labels
+                            ));
+                        }
+                    }
+
+                    // Otherwise, they are all going to be stamped with this levels labels
+                    else buffer.AddRange(current.directory.GetDirectories("*", SearchOption.AllDirectories));
+
+                    // Add this directory to the label list
+                    buffer.Add(current.directory);
+
+                    // Find the files that are to be labeled for this level
+                    buffer.AddRange(current.directory.GetFiles(
+                        "*",
+                        atSearchDepth ? SearchOption.AllDirectories : SearchOption.TopDirectoryOnly
+                    ));
+
+                    // Set the labels on all of the assets that were identified
+                    string[] labels = new string[current.labels.Count];
+                    current.labels.CopyTo(labels);
+                    foreach (var element in buffer) {
+                        // Correct the path to a Unity Asset Database friendly version
+                        string assetPath = element.FullName.Substring(WORKING_DIRECTORY.Length).Replace('\\', '/');
+
+                        // Try to load the asset at the specified path
+                        UnityEngine.Object asset = AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(assetPath);
+                        if (asset) AssetDatabase.SetLabels(asset, labels);
+                    }
                 }
             }
 
@@ -536,6 +651,97 @@ namespace MCU.Registry {
                     foundDirectory.FullName.Substring(WORKING_DIRECTORY.Length).Replace('\\', '/') :
                     null
                 );
+            }
+
+            /// <summary>
+            /// Find all directories within the Assets folder that matches the search pattern
+            /// </summary>
+            /// <param name="searchDirectory">The directory that is being looked for</param>
+            /// <param name="searchIdentifiedChildren">Flags if the children of an identified search directory should be searched</param>
+            /// <returns>Returns a list of all of the asset directories contained within the project assets</returns>
+            /// <remarks>
+            /// A valid path that is returned by this search will start with "Assets/..."
+            /// </remarks>
+            public static List<string> FindAssetDirectories(string searchDirectory, bool searchIdentifiedChildren = false) {
+                // Create the list of items to be found
+                List<string> identifiedPaths = new List<string>();
+
+                // Divide the specified search string into the different segments
+                string[] searchStages = searchDirectory.Split(DIRECTORY_SEPARATORS, StringSplitOptions.RemoveEmptyEntries);
+
+                // If there are no stages then don't bother
+                if (searchStages.Length == 0) return identifiedPaths;
+
+                // Look for the chain of directories that are needed to identify the correct location
+                Queue<DirectoryInfo> unsearched = new Queue<DirectoryInfo>();
+                unsearched.Enqueue(new DirectoryInfo(WORKING_DIRECTORY + "Assets/"));
+
+                // Process all of the contained directories for a match
+                DirectoryInfo foundDirectory = null;
+                while (unsearched.Count > 0) {
+                    // Get the next directory to be processed
+                    DirectoryInfo current = unsearched.Dequeue();
+
+                    // If this directory is the start of the process, look for the sub sections
+                    if (current.Name == searchStages[0]) {
+                        // If this is the only level of the search then we're good
+                        if (searchStages.Length == 1)
+                            foundDirectory = current;
+
+                        // Otherwise, look for the child directories that are needed
+                        else {
+                            // Store the parent directory that is currently being searched
+                            DirectoryInfo parent = current;
+
+                            // Look for each of the child stages that are needed
+                            for (int i = 1; i < searchStages.Length; ++i) {
+                                // Try to find the directory at this stage
+                                DirectoryInfo[] stages = parent.GetDirectories(searchStages[i], SearchOption.TopDirectoryOnly);
+                                if (stages.Length == 0) break;
+
+                                // Try to find the sub-directory to look in
+                                DirectoryInfo newParent = null;
+                                for (int ii = 0; ii < stages.Length; ++ii) {
+                                    // If this directory is a match then we're good
+                                    if (stages[ii].Name == searchStages[i]) {
+                                        newParent = stages[ii];
+                                        break;
+                                    }
+                                }
+
+                                // If no directory was found then search ends here
+                                if (newParent == null) break;
+
+                                // If this is the last directory needed, then search is over
+                                else if (i == searchStages.Length - 1) {
+                                    foundDirectory = newParent;
+                                    break;
+                                }
+
+                                // Otherwise, we need to go down to the next layer
+                                else parent = newParent;
+                            }
+                        }
+                    }
+
+                    // If the directory was found then don't need to search anymore
+                    if (foundDirectory != null) {
+                        // Add the path for this directory to the list
+                        identifiedPaths.Add(foundDirectory.FullName.Substring(WORKING_DIRECTORY.Length).Replace('\\', '/'));
+                        foundDirectory = null;
+
+                        // If we don't need to search children we can cutout here
+                        if (!searchIdentifiedChildren)
+                            continue;
+                    }
+
+                    // Add the sub-directories to the processing list
+                    foreach (DirectoryInfo subDirectory in current.GetDirectories())
+                        unsearched.Enqueue(subDirectory);
+                }
+
+                // Return the collection of paths found
+                return identifiedPaths;
             }
         }
 #endif
