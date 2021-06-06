@@ -807,15 +807,13 @@ namespace MCU.Registry {
                     fileBuffer.Add(current.dir);
 
                     // Set the labels on all of the assets that were identified
-                    string[] labels = new string[current.labels.Count];
-                    current.labels.CopyTo(labels);
                     foreach (FileSystemInfo element in fileBuffer) {
                         // Correct the path of the asset to something that works with the Asset Database
                         string assetPath = element.FullName.Substring(WORKING_DIRECTORY.Length).Replace('\\', '/');
 
                         // Try to load the generic asset at this location to set the labels
                         UnityEngine.Object asset = AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(assetPath);
-                        if (asset) AssetDatabase.SetLabels(asset, labels);
+                        if (asset) AddLabelsToAsset(asset, current.labels);
                     }
                 }
             }
