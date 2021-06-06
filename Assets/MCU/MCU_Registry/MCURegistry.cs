@@ -6,7 +6,7 @@ namespace MCU.Registry {
     /// <summary>
     /// Manage the registration of different MCU adapters that can be used dynamically
     /// </summary>
-    [MCUAdapter("registry", "1.2.0", "REG")]
+    [MCUAdapter("registry", "1.2.1", "REG")]
     public static partial class MCURegistry {
         /*----------Types----------*/
         //PRIVATE
